@@ -1,6 +1,6 @@
 FROM php:8.2-apache
 
-# Instala ferramentas do sistema e extensões de banco/sistema
+# Instala dependências do sistema
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
@@ -19,18 +19,21 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Ativa mod_rewrite
 RUN a2enmod rewrite
 
-# Copia arquivos
+# Copia os arquivos do projeto
 COPY . /var/www/html/
 
-# Instala pacotes ignorando requisitos estritos de plataforma
+# Cria o arquivo .env a partir do .env.example se o .env não existir
+RUN if [ -f .env.example ] && [ ! -f .env ]; then cp .env.example .env; fi
+
+# Instala pacotes do Composer
 WORKDIR /var/www/html
 ENV COMPOSER_ALLOW_SUPERUSER=1
 RUN composer install --no-dev --ignore-platform-reqs --no-interaction
 
-# Permissões do Apache
+# Ajusta permissões dos arquivos
 RUN chown -R www-data:www-data /var/www/html
 
-# Aponta para /public
+# Aponta para a pasta public
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/conf-available/*.conf
