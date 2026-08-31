@@ -1,6 +1,6 @@
 FROM php:8.2-apache
 
-# Instala extensões e pacotes do sistema
+# Instala extensões necessárias
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
@@ -16,32 +16,31 @@ RUN apt-get update && apt-get install -y \
 # Ativa mod_rewrite
 RUN a2enmod rewrite
 
-# Copia o Composer
+# Copia Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Copia os arquivos do projeto
+# Copia arquivos da aplicação
 COPY . /var/www/html/
 
 WORKDIR /var/www/html
 
-# Cria o .env se não existir
+# Cria .env se necessário
 RUN if [ -f .env.example ] && [ ! -f .env ]; then cp .env.example .env; fi
 
-# Instala pacotes do Composer
+# Instala dependências do Composer
 ENV COMPOSER_ALLOW_SUPERUSER=1
 RUN composer install --no-dev --ignore-platform-reqs --no-interaction
 
-# Ajusta permissões totais para o Apache (www-data) ler e escrever
+# Ajusta permissões dos arquivos
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html
 
-# Aponta a raiz do Apache para /public
+# Redireciona a pasta pública do Apache
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/conf-available/*.conf
 
-# Direciona os erros do Apache diretamente para os logs do Render
-RUN ln -sf /dev/stdout /var/log/apache2/access.log \
-    && ln -sf /dev/stderr /var/log/apache2/error.log
+# Reconfigura a porta do Apache para usar a variável $PORT fornecida pelo Render (ou 80 como fallback)
+RUN sed -i 's/80/${PORT}/g' /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf
 
 EXPOSE 80
