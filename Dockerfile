@@ -1,6 +1,6 @@
 FROM php:8.2-apache
 
-# Instala ferramentas essenciais e pacotes do sistema
+# Instala ferramentas do sistema e extensões de banco/sistema
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
@@ -9,26 +9,28 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     libonig-dev \
     libxml2-dev \
+    libzip-dev \
+    && docker-php-ext-install pdo pdo_mysql zip \
     && rm -rf /var/lib/apt/lists/*
 
-# Instala o Composer
+# Copia o Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Ativa o mod_rewrite do Apache
+# Ativa mod_rewrite
 RUN a2enmod rewrite
 
-# Copia os arquivos do projeto
+# Copia arquivos
 COPY . /var/www/html/
 
-# Permite o Composer rodar como root e instala pacotes com opção de fallback
+# Instala pacotes ignorando requisitos estritos de plataforma
 WORKDIR /var/www/html
 ENV COMPOSER_ALLOW_SUPERUSER=1
-RUN composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+RUN composer install --no-dev --ignore-platform-reqs --no-interaction
 
-# Ajusta as permissões dos arquivos para o Apache
+# Permissões do Apache
 RUN chown -R www-data:www-data /var/www/html
 
-# Redireciona a raiz do Apache para /public
+# Aponta para /public
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/conf-available/*.conf
